@@ -1,0 +1,37 @@
+version: 2
+updates:
+  # Root pom covers both modules (Spring Boot parent, Modulith BOM, springdoc, plugins).
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      spring:
+        patterns:
+          - "org.springframework*"
+      everything-else:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "org.springframework*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  # Builder and runtime base images in the Dockerfile.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+
+  # Postgres, Redis, Grafana and nginx images in docker-compose.yml.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly

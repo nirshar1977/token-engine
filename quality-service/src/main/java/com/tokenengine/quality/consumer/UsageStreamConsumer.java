@@ -46,10 +46,7 @@ class UsageStreamConsumer {
             if (!ensureGroup()) {
                 return;
             }
-            List<MapRecord<String, Object, Object>> records = redis.opsForStream().read(
-                    Consumer.from(properties.group(), properties.consumer()),
-                    StreamReadOptions.empty().count(properties.batchSize()),
-                    StreamOffset.create(properties.streamKey(), ReadOffset.lastConsumed()));
+            List<MapRecord<String, Object, Object>> records = readBatch();
             if (records == null) {
                 return;
             }
@@ -60,6 +57,16 @@ class UsageStreamConsumer {
         } catch (DataAccessException e) {
             log.warn("Usage stream unavailable, will retry: {}", e.getMessage());
         }
+    }
+
+    // read(...) takes generic varargs (StreamOffset<K>...), which the interface can't mark @SafeVarargs.
+    // A single offset is passed, so the generic array is never exposed.
+    @SuppressWarnings("unchecked")
+    private List<MapRecord<String, Object, Object>> readBatch() {
+        return redis.opsForStream().read(
+                Consumer.from(properties.group(), properties.consumer()),
+                StreamReadOptions.empty().count(properties.batchSize()),
+                StreamOffset.create(properties.streamKey(), ReadOffset.lastConsumed()));
     }
 
     private void handle(MapRecord<String, Object, Object> record) {
