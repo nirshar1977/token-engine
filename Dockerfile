@@ -2,7 +2,7 @@
 #                                docker build --build-arg MODULE=quality-service .
 ARG MODULE=gateway-app
 
-FROM maven:3.9-eclipse-temurin-25 AS build
+FROM maven:3.9-eclipse-temurin-26 AS build
 ARG MODULE
 WORKDIR /src
 COPY pom.xml .
