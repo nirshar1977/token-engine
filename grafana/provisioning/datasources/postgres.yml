@@ -1,0 +1,16 @@
+apiVersion: 1
+
+datasources:
+  - name: TokenEngine
+    uid: token-engine-pg
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: postgres:5432
+    user: tokens
+    isDefault: true
+    jsonData:
+      database: tokens
+      sslmode: disable
+      postgresVersion: 1700
+    secureJsonData:
+      password: $DB_PASSWORD

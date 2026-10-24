@@ -1,0 +1,113 @@
+# Local:  cp .env.example .env  (edit values)  &&  docker compose up -d --build
+# VPS:    set NGINX_CONF=vps and DOMAIN in .env, get a certificate first (see README), then the same command.
+services:
+  gateway:
+    build:
+      context: .
+      args:
+        MODULE: gateway-app
+    image: ${IMAGE_PREFIX:-token-engine}/gateway:${IMAGE_TAG:-latest}
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/tokens
+      DB_USER: tokens
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      REDIS_HOST: redis
+      TOKENENGINE_DEVELOPER_KEYS: ${TOKENENGINE_DEVELOPER_KEYS:?set TOKENENGINE_DEVELOPER_KEYS in .env}
+      TOKENENGINE_ADMIN_KEY: ${TOKENENGINE_ADMIN_KEY:?set TOKENENGINE_ADMIN_KEY in .env}
+      TOKENENGINE_UPSTREAM_URL: ${TOKENENGINE_UPSTREAM_URL:-https://api.anthropic.com}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # The JRE image has no curl; bash's /dev/tcp is enough for a health probe.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /actuator/health HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    restart: unless-stopped
+
+  quality:
+    build:
+      context: .
+      args:
+        MODULE: quality-service
+    image: ${IMAGE_PREFIX:-token-engine}/quality:${IMAGE_TAG:-latest}
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/tokens
+      DB_USER: tokens
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: tokens
+      POSTGRES_USER: tokens
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tokens -d tokens"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
+      DB_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    # Only reachable from the machine itself; on a VPS use an SSH tunnel: ssh -L 3000:localhost:3000 you@vps
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:stable-alpine
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./nginx/${NGINX_CONF:-local}.conf.template:/etc/nginx/templates/gateway.conf.template:ro
+      # On the VPS set CERTS_DIR=/etc/letsencrypt; locally an empty folder is mounted instead.
+      - ${CERTS_DIR:-./nginx/no-certs}:/etc/letsencrypt:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      gateway:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  grafanadata:

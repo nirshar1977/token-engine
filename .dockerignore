@@ -1,0 +1,7 @@
+.git
+.env
+**/target
+.idea
+.vscode
+grafana
+nginx

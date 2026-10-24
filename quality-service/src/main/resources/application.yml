@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: token-engine-quality
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/tokens}
+    username: ${DB_USER:tokens}
+    password: ${DB_PASSWORD:tokens}
+  flyway:
+    schemas: quality
+    default-schema: quality
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+server:
+  port: 8081
+
+quality:
+  stream-key: tokenengine:usage
+  group: quality-service
+  consumer: ${HOSTNAME:quality-1}
+  batch-size: 100
+  poll-interval: 1s
+  min-cacheable-prompt-tokens: 4096
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
